@@ -1,0 +1,57 @@
+<script>
+	let activeEffect;
+
+	class Dep {
+		constructor(value) {
+			this.subscribers = new Set();
+			this._value = value;
+		}
+
+		get value() {
+			this.depend();
+			return this._value;
+		}
+
+		set value(newValue) {
+			this._value = newValue;
+			this.notify();
+		}
+
+		depend() {
+			if (activeEffect) {
+				this.subscribers.add(activeEffect);
+			}
+		}
+
+		notify() {
+			this.subscribers.forEach((effect) => effect());
+		}
+	}
+
+	function watchEffect(effect) {
+		activeEffect = effect;
+		effect();
+		activeEffect = null;
+	}
+
+
+	// 接下来是测试的代码
+
+	const flag = new Dep(true);
+	const count = new Dep(0);
+
+	watchEffect(() => {
+		if (flag.value) {
+			console.log(count.value);
+		} else {
+			console.log('error branch');
+		}
+	})
+
+	count.value++;
+	flag.value = false; // 尤大希望执行这一遍后，count的依赖被删除，
+	// 因为watchEffect中不会再执行到count.value，
+	// 但接下来改变count还是会触发watchEffect，因为count的依赖还存在，
+	// 所以触发了console.log('error branch')
+	count.value++;
+</script>
