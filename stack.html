@@ -1,0 +1,50 @@
+<script src="https://unpkg.com/vue"></script>
+<style>
+    .mt-4 {
+        margin: 10px;
+    }
+</style>
+
+<div id="app"></div>
+
+<script>
+    const {h, createApp} = Vue
+
+    // 定义 Stack 组件
+    const Stack = {
+        props: ['size'], // 视频中尤大貌似没有指明 props
+        render() {
+            // 获取默认插槽
+            const slot = this.$slots.default
+                ? this.$slots.default()
+                : []
+
+            // 将插槽中的所有内容套上 div，并且读取 props 上的 size 属性，
+            // 并构成类名
+            return h('div', {class: 'stack'}, slot.map(child => {
+                return h('div', {class: `mt-${this.$props.size}`}, [
+                    child
+                ])
+            }))
+        }
+    }
+
+    // App 组件
+    const App = {
+        template: `
+            <Stack size="4">
+            <div>hello</div>
+            <Stack size="4">
+                <div>hello</div>
+                <div>hello</div>
+            </Stack>
+            </Stack>
+        `,
+        components: {
+            Stack
+        }
+    }
+
+    // 创建 vue 实例并挂载到 DOM 上
+    createApp(App).mount('#app')
+</script>
