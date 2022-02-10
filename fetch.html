@@ -1,0 +1,79 @@
+<script src="https://unpkg.com/vue"></script>
+
+<div id="app"></div>
+
+<script>
+    const {createApp, ref, watchEffect} = Vue
+
+    // 进一步简化在组件中的 use
+    function usePost(getId) {
+        return useFetch(() => `https://jsonplaceholder.typicode.com/todos/${getId()}`)
+    }
+
+    // 抽出 fetch，并且你可以在的 useFetch 中使用 watchEffect 来监听传进来的值的变化
+    function useFetch(getUrl) {
+        const data = ref(null)
+        const error = ref(null)
+        const isPending = ref(true)
+
+        watchEffect(() => {
+            // reset
+            data.value = null
+            error.value = null
+            isPending.value = true
+            // fetch
+            fetch(getUrl())
+                .then(res => res.json())
+                .then(_data => {
+                    data.value = _data
+                })
+                .catch(err => {
+                    error.value = err
+                })
+                .finally(() => {
+                    isPending.value = false
+                })
+        })
+
+        return {
+            data,
+            error,
+            isPending
+        }
+    }
+
+    const Post = {
+        template: `
+            <div v-if="isPending">loading</div>
+            <div v-else-if="data">{{ data }}</div>
+            <div v-else-if="error">Something went Wrong: {{ error.message }}</div>
+        `,
+        props: ['id'],
+        setup(props) {
+            // prop.id 被传到了 useFetch 的 watchEffect 中
+            // 所以 prop.id 变化，即可重新 fetch
+            const {data, error, isPending} = usePost(() => props.id)
+
+            return {
+                data,
+                error,
+                isPending
+            }
+        }
+    }
+
+    const App = {
+        components: {Post},
+        data() {
+            return {
+                id: 1
+            }
+        },
+        template: `
+            <button @click="id++">change ID</button>
+            <Post :id="id"></Post>
+        `
+    }
+
+    createApp(App).mount('#app')
+</script>

@@ -1,56 +1,62 @@
 <script>
-	let activeEffect;
+    let activeEffect;
 
-	class Dep {
-		subscribers = new Set();
+    // 有了 reactive，Dep 中无需记录值，值就在原来的对象上
+    // Dep 只是单纯地收集依赖，执行 effect
+    class Dep {
+        subscribers = new Set();
 
-		depend() {
-			if (activeEffect) {
-				this.subscribers.add(activeEffect);
-			}
-		}
+        depend() {
+            if (activeEffect) {
+                this.subscribers.add(activeEffect);
+            }
+        }
 
-		notify() {
-			this.subscribers.forEach((effect) => effect());
-		}
-	}
+        notify() {
+            this.subscribers.forEach(effect => {
+                effect()
+            });
+        }
+    }
 
-	function watchEffect(effect) {
-		activeEffect = effect;
-		effect();
-		activeEffect = null;
-	}
-
-
-	function reactive(raw) {
-		Object.keys(raw).forEach(key => {
-			const dep = new Dep();
-			let value = raw[key];
-
-			Object.defineProperty(raw, key, {
-				get() {
-					dep.depend();
-					return value;
-				},
-				set(newValue) {
-					value = newValue;
-					dep.notify();
-				}
-			})
-		})
-
-    return raw
-	}
-
-	const state = reactive({
-		count: 0
-	})
-
-	watchEffect(() => {
-		console.log(state.count)
-	});
-
-	state.count++
+    function watchEffect(effect) {
+        activeEffect = effect;
+        effect();
+        activeEffect = null;
+    }
 
 
+    // Vue 2 采用 Object.defineProperty 为对象上的每一个 key 添加响应式
+    // 这样做的缺点就是新增的属性无法自动添加响应式
+    function reactive(raw) {
+        Object.keys(raw).forEach(key => {
+            const dep = new Dep();
+            let value = raw[key];
+
+            Object.defineProperty(raw, key, {
+                get() {
+                    // 获取 key 对应的值时添加依赖
+                    dep.depend();
+                    return value;
+                },
+                set(newValue) {
+                    // 设置 key 对应的值时进行更新
+                    value = newValue;
+                    dep.notify();
+                }
+            })
+        })
+
+        return raw
+    }
+
+    const state = reactive({
+        count: 0
+    })
+
+    watchEffect(() => {
+        console.log(state.count)
+    });
+
+    state.count++
 </script>

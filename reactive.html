@@ -1,71 +1,81 @@
 <script>
-	let activeEffect;
+    let activeEffect;
 
-	class Dep {
-		subscribers = new Set();
+    class Dep {
+        subscribers = new Set();
 
-		depend() {
-			if (activeEffect) {
-				this.subscribers.add(activeEffect);
-			}
-		}
+        depend() {
+            if (activeEffect) {
+                this.subscribers.add(activeEffect);
+            }
+        }
 
-		notify() {
-			this.subscribers.forEach((effect) => effect());
-		}
-	}
+        notify() {
+            this.subscribers.forEach(effect => {
+                effect()
+            });
+        }
+    }
 
-	function watchEffect(effect) {
-		activeEffect = effect;
-		effect();
-		activeEffect = null;
-	}
+    function watchEffect(effect) {
+        activeEffect = effect;
+        effect();
+        activeEffect = null;
+    }
 
-	const targetMap = new WeakMap();
+    // 创建一个存放 deps 的弱引用 Map，key 为 target 本身
+    // 即需要响应式处理的对象本身
+    // WeakMap 只能用 object 作为 key，并且无法被遍历
+    // 当 target 不在需要的时候，可以正确地被垃圾处理机制回收
+    const targetMap = new WeakMap();
 
-	function getDep(target, key) {
-		let depsMap = targetMap.get(target);
-		if (!depsMap) {
-			depsMap = new Map();
-			targetMap.set(target, depsMap);
-		}
-		let dep = depsMap.get(key);
-		if (!dep) {
-			dep = new Dep();
-			depsMap.set(key, dep);
-		}
-		return dep
-	}
+    function getDep(target, key) {
+        // 获取 target 对应的 deps，不存在就创建
+        let depsMap = targetMap.get(target);
+        if (!depsMap) {
+            depsMap = new Map();
+            targetMap.set(target, depsMap);
+        }
+        // 获取 target[key] 对应的 dep，不存在就创建
+        let dep = depsMap.get(key);
+        if (!dep) {
+            dep = new Dep();
+            depsMap.set(key, dep);
+        }
+        return dep
+    }
 
-	const reactiveHandlers = {
-		get(target, key, receiver) {
-			const dep = getDep(target, key);
-			dep.depend();
+    const reactiveHandlers = {
+        // 因为 get 和 set 里都需要获取 dep，故抽成一个获取 dep 的函数
+        get(target, key, receiver) {
+            const dep = getDep(target, key);
+            // 收集依赖
+            dep.depend();
+            // 使用 Reflect 确保与原始的 get 一致
+            return Reflect.get(target, key, receiver);
+        },
+        set(target, key, value, receiver) {
+            const dep = getDep(target, key);
+            // Proxy 的 set 需要返回一个值
+            const result = Reflect.set(target, key, value, receiver);
+            // 通知更新
+            dep.notify();
+            return result;
+        },
+    }
 
-			return Reflect.get(target, key, receiver);
-		},
-		set(target, key, value, receiver) {
-			const dep = getDep(target, key);
-			const result = Reflect.set(target, key, value, receiver);
-			dep.notify();
+    function reactive(raw) {
+        // 使用 Proxy，更方便地拦截处理
+        return new Proxy(raw, reactiveHandlers);
+    }
 
-			return result;
-		},
-	}
+    const state = reactive({
+        count: 0
+    })
 
-	function reactive(raw) {
-		return new Proxy(raw, reactiveHandlers);
-	}
+    watchEffect(() => {
+        console.log(state.count)
+    });
 
-	const state = reactive({
-		count: 0
-	})
-
-	watchEffect(() => {
-		console.log(state.count)
-	});
-
-	state.count++
-
-
+    state.count++
 </script>

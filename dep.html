@@ -1,57 +1,72 @@
 <script>
-	let activeEffect;
+    // 记录当前的 effect
+    let activeEffect;
 
-	class Dep {
-		constructor(value) {
-			this.subscribers = new Set();
-			this._value = value;
-		}
+    // 创建一个 Dep 类
+    class Dep {
+        // 构造的时候，记录 effect 到 subscribers 集合中
+        // 这里直接把值记录在 Dep 中
+        constructor(value) {
+            this.subscribers = new Set();
+            this._value = value;
+        }
 
-		get value() {
-			this.depend();
-			return this._value;
-		}
+        // 获取的时候收集依赖
+        get value() {
+            this.depend();
+            return this._value;
+        }
 
-		set value(newValue) {
-			this._value = newValue;
-			this.notify();
-		}
+        // 赋值的时候通知更新
+        set value(newValue) {
+            this._value = newValue;
+            this.notify();
+        }
 
-		depend() {
-			if (activeEffect) {
-				this.subscribers.add(activeEffect);
-			}
-		}
+        // 将当前的 effect 放入 subscribers 集合
+        // 使用集合可以避免重复收集依赖
+        depend() {
+            if (activeEffect) {
+                this.subscribers.add(activeEffect);
+            }
+        }
 
-		notify() {
-			this.subscribers.forEach((effect) => effect());
-		}
-	}
+        // 更新的时候，把集合里的 effect 都执行一遍
+        notify() {
+            this.subscribers.forEach(effect => {
+                effect()
+            });
+        }
+    }
 
-	function watchEffect(effect) {
-		activeEffect = effect;
-		effect();
-		activeEffect = null;
-	}
+    // 把传入进来的回调函数设置成当前的 effect
+    // 然后立马执行一遍回调函数
+    // 执行完后清空当前的 effect
+    function watchEffect(effect) {
+        activeEffect = effect;
+        effect();
+        activeEffect = null;
+    }
 
 
-	// 接下来是测试的代码
+    // 接下来是测试的代码
+    const ok = new Dep(true);
+    const count = new Dep(0);
 
-	const flag = new Dep(true);
-	const count = new Dep(0);
+    watchEffect(() => {
+        if (ok.value) {
+            console.log(count.value);
+        } else {
+            console.log('error branch');
+        }
+    })
 
-	watchEffect(() => {
-		if (flag.value) {
-			console.log(count.value);
-		} else {
-			console.log('error branch');
-		}
-	})
-
-	count.value++;
-	flag.value = false; // 尤大希望执行这一遍后，count的依赖被删除，
-	// 因为watchEffect中不会再执行到count.value，
-	// 但接下来改变count还是会触发watchEffect，因为count的依赖还存在，
-	// 所以触发了console.log('error branch')
-	count.value++;
+    count.value++;
+    ok.value = false;
+    // 尤大希望执行这一遍后，count 的依赖被删除，
+    // 因为 watchEffect 中不会再执行到 count.value，
+    // 但接下来改变 count 还是会触发 watchEffect，因为 count 的依赖还存在，
+    // 所以触发了 console.log('error branch')
+    // 所以 Vue 3 的源码中，每次都会整理依赖
+    count.value++;
 </script>
