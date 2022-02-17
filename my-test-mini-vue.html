@@ -1,0 +1,196 @@
+<div id="app"></div>
+<style>
+    .red{
+        color: red;
+    }
+
+    .green{
+        color: green;
+    }
+</style>
+
+<script>
+    function h(tag, props, children) {
+        return { tag, props, children }
+    }
+
+    function mount(vNode, container) {
+        const { tag, props, children } = vNode
+
+        const el = vNode.el = document.createElement(tag)
+
+        Object.keys(props).forEach(key => {
+            const value = props[key]
+            if (key.startsWith('on')) {
+                el.addEventListener(key.slice(2).toLowerCase(), value)
+            } else {
+                el.setAttribute(key, value)
+            }
+        })
+
+        if (typeof children === 'string') {
+            el.textContent = children
+        } else {
+            children.forEach(child => {
+                mount(child, container)
+            })
+        }
+
+        container.appendChild(el)
+    }
+
+    function patch(vNode, oldVNode) {
+        const { tag, props, children } = vNode
+        const { el, tag: oldTag, props: oldProps, children: oldChildren } = oldVNode
+
+        if (tag === oldTag) {
+            vNode.el = el
+
+            Object.keys(props).forEach(key => {
+                const value = props[key]
+                const oldValue = oldProps[key]
+                if (value !== oldValue) {
+                    el.setAttribute(key, value)
+                }
+            })
+
+            Object.keys(oldProps).forEach(key => {
+                const oldValue = oldProps[key]
+                if (!props.hasOwnProperty(key)) {
+                    el.removeAttribute(key)
+                }
+            })
+
+            if (typeof children === 'string') {
+                if (typeof oldChildren === 'string') {
+                    if (oldChildren !== children) {
+                        el.textContent = children
+                    }
+                } else {
+                    el.textContent = children
+                }
+            } else {
+                if (typeof oldChildren === 'string') {
+                    el.innerText = ''
+                    children.forEach(child => {
+                        mount(child, el)
+                    })
+                } else {
+                    const commonLength = Math.min(children.length, oldChildren.length)
+
+                    for (let i = 0; i < commonLength; i++) {
+                        patch(child[i], oldChildren[i])
+                    }
+
+                    if (children.length > commonLength) {
+                        children.slice(commonLength).forEach(child => {
+                            mount(child, el)
+                        })
+                    }
+
+                    if (oldChildren.length > commonLength) {
+                        oldChildren.slice(commonLength).forEach(child => {
+                            el.removeChild(child)
+                        })
+                    }
+                }
+            }
+        } else {
+            // replace
+        }
+    }
+
+    let activeEffect
+
+    class Dep {
+        subscribers = new Set();
+
+        depend() {
+            if (activeEffect) {
+                this.subscribers.add(activeEffect)
+            }
+        }
+
+        notify() {
+            this.subscribers.forEach(effect => {
+                effect()
+            })
+        }
+    }
+
+    function watchEffect(effect) {
+        activeEffect = effect
+        effect()
+        activeEffect = null
+    }
+
+    const targetMap = new WeakMap()
+
+    function getDep(target, property) {
+        let depMap = targetMap.get(target)
+        if (!depMap) {
+            depMap = new Map()
+            targetMap.set(target, depMap)
+        }
+        let dep = depMap.get(property)
+        if (!dep) {
+            dep = new Dep();
+            depMap.set(property, dep)
+        }
+        return dep
+    }
+
+    const reactiveHandlers = {
+        get(target, property, receiver) {
+            const dep = getDep(target, property)
+            dep.depend()
+            return Reflect.get(target, property, receiver)
+        },
+
+        set(target, property, value, receiver) {
+            const dep = getDep(target, property)
+            const result = Reflect.set(target, property, value, receiver)
+            dep.notify()
+            return result
+        }
+    }
+
+    function reactive(raw) {
+        return new Proxy(raw, reactiveHandlers)
+    }
+
+
+    const App = {
+        data: reactive({
+            count: 0,
+            class: 'red'
+        }),
+        render() {
+            return h('div', {
+                onClick: () => {
+                    this.data.count++
+                    this.data.class = 'green'
+                },
+                class: this.data.class
+            }, String(this.data.count))
+        }
+    }
+
+    function mountApp(component, container) {
+        let isMounted = false
+        let prevVNode
+        watchEffect(() => {
+            if (!isMounted) {
+                prevVNode = component.render()
+                mount(prevVNode, container)
+                isMounted = true
+            } else {
+                const vNode = component.render()
+                patch(vNode, prevVNode)
+                prevVNode = vNode
+            }
+        })
+    }
+
+    mountApp(App, document.getElementById('app'))
+</script>
